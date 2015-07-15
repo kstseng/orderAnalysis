@@ -181,7 +181,7 @@ TimeDiff <- sapply(1:nrow(dataUse), function(i){
   }
   
   return(timediff)
-})
+}) # Response variable
 t5 <- proc.time()
 LeadTime <- sapply(1:nrow(dataUse), function(i){
   d <- dataUse[i, ]
@@ -196,18 +196,6 @@ LeadTime <- sapply(1:nrow(dataUse), function(i){
   return(lt)
 })
 t6 <- proc.time()
-Delay <- sapply(1:nrow(dataUse), function(i){
-  timediff <- TimeDiff[i]
-  if (is.na(timediff)){
-    delay <- NA
-  }else if(timediff > 30){
-    delay <- 1
-  }else{
-    delay <- 0
-  }
-  return(delay)
-})
-t7 <- proc.time()
 
 dataCleaning <- cbind(dataUse, "ModePayment" = ModePayment, "NewSector" = NewSector, 
                       "OrderSeason" = OrderSeason, "LeadTime" = LeadTime, "Delay" = Delay)
@@ -239,39 +227,7 @@ sum(dataForUse[which(dataForUse$PG %in% c("Industrial Automation", "Intelligent 
 
 tabOrd <- table(dataForUse[which(dataForUse$Delay == 1), "OrderDate"])
 ####
-#### decision tree
+#### linear regression
 ####
-library(rpart)
-tree1 <- rpart(Delay ~ Region + PG + Qty + US.Amt + ModePayment + NewSector + OrderSeason + LeadTime, data = dataForUse, method = "class", cp=0.005)
-plot(tree1)
-text(tree1)
-
-test <- dataForUse[948, ][, -11]
-my_prediction <- predict(tree1, test, type="class")
-####
-#### random forest
-####
-library(randomForest)
-my_forest <- randomForest(Delay ~ Region + PG + Qty + US.Amt + ModePayment + NewSector + OrderSeason + LeadTime, data = dataForUse, importance = TRUE, ntree = 1000)
-my_forest <- randomForest(Delay ~ Region + PG + Qty + US.Amt + ModePayment + NewSector + OrderSeason + LeadTime, 
-                          data = dataForUse, importance = TRUE, mtry = ceiling(sqrt(8)), replace = TRUE,   
-                          ntree = 1000, sampsize = c(4, 500), na.action = na.omit)
-my_forest
-predict(my_forest, type="prob")
-
-####
-#### SVM
-####
-# install.packages("e1071")
-library(e1071)
-# example("svm")
-fcstMonth <- "2015-6-1"
-strptime(fcstMonth, "%Y-%m-%d")
-dataTrain <- which(dataForUse$YMD >= strptime(fcstMonth, "%Y-%m-%d"))
-head(dataForUse$YMD)
-my_svm <- svm(Delay ~ Region + PG + Qty + US.Amt + ModePayment + NewSector + OrderSeason + LeadTime, data = dataForUse)
-
-
-
 
 
