@@ -10,11 +10,13 @@
 #                             edivision,sales_id,Sector order by 1,2,3,4,5
 #                             ")
 # save.image("C:/Users/David79.Tseng/Dropbox/David79.Tseng/git-respository/orderAnalysis/order_20150101_20150630.RData")
+load("C:\\Users\\David79.Tseng\\Dropbox\\David79.Tseng\\git-respository\\orderAnalysis\\order_2010_201506.rdata")
 load("C:\\Users\\David79.Tseng\\Dropbox\\David79.Tseng\\git-respository\\orderAnalysis\\order_2013_201506.rdata")
 load("C:\\Users\\David79.Tseng\\Dropbox\\David79.Tseng\\git-respository\\orderAnalysis\\order_20150101_20150630.rdata")
 load("C:\\Users\\David79.Tseng\\Dropbox\\David79.Tseng\\git-respository\\orderAnalysis\\order_20150601_20150610.rdata")
-nrow(raw_data)
-colnames(raw_data)
+load("C:\\Users\\David79.Tseng\\Dropbox\\David79.Tseng\\git-respository\\orderAnalysis\\dataForUse_2010.rdata")
+# nrow(raw_data)
+# colnames(raw_data)
 #dataUse <- raw_data[, c("order_no", "Order_Date", "FirstDate", "CmtDate1st", "efftive_date", "Customer_id", "item_no", "fact_entity", 
 #                       "fact_zone", "egroup", "edivision", "sales_id", "Sector", "", ".1")]
 # dataUse <- as.data.frame(as.matrix(raw_data))
@@ -103,51 +105,6 @@ seasonDefine <- function(month){
   return(out)
 }
 
-## old version
-dataCleaning <- dataUse
-for(i in 1:nrow(dataUse)){
-  print(i/nrow(dataUse))
-  d <- dataUse[i, ]
-  ##
-  ## define delay or not
-  ##
-  if (strptime(d[, "OrderDate"], "%Y-%m-%d") - strptime(d[, "YMD"], "%Y-%m-%d") >= 0){
-    timediff <-  0
-  }else{
-    if (!is.na(d[, "CmtDate1st"]) & !is.na(d[, "YMD"])){
-      timediff <- strptime(d[, "CmtDate1st"], "%Y-%m-%d") - strptime(d[, "YMD"], "%Y-%m-%d") 
-    }else if(is.na(d[, "CmtDate1st"]) & !is.na(d[, "YMD"])){
-      if (!is.na(d[, "X1st.Date"])){
-        timediff <- strptime(d[, "X1st.Date"], "%Y-%m-%d") - strptime(d[, "YMD"], "%Y-%m-%d") 
-      }else{
-        timediff <- NA
-      }
-    }else{
-      timediff <- NA
-    }
-  }
-  
-  if (is.na(timediff)){
-    delay <- NA
-  }else if(timediff > 30){
-    delay <- 1
-  }else{
-    delay <- 0
-  }
-  
-  ##
-  ## order season
-  ##
-  om <- as.numeric(strsplit(as.character(d$OrderDate), split = "-")[[1]][2])
-  orderSeason <- seasonDefine(om)
-  ##
-  ## sector classified and adding new feature 
-  ## 
-  dataCleaning[i, "ModePayment"] <- modePayment(d[, "Sector"])
-  dataCleaning[i, "NewSector"] <- sectorClassified(d[, "Sector"])
-  dataCleaning[i, "OrderSeason"] <- orderSeason
-  dataCleaning[i, "Delay"] <- delay
-}
 ## new version
 t1 <- proc.time()
 OrderSeason <- sapply(1:nrow(dataUse), function(i){
@@ -162,72 +119,120 @@ NewSector <- sapply(1:nrow(dataUse), function(i){
   sectorClassified(dataUse[i, "Sector"])
 })
 t4 <- proc.time()
-TimeDiff <- sapply(1:nrow(dataUse), function(i){
+timeCompute <- sapply(1:nrow(dataUse), function(i){
   d <- dataUse[i, ]
-  if (strptime(d$OrderDate, "%Y-%m-%d") - strptime(d$YMD, "%Y-%m-%d") >= 0){
-    timediff <-  0
+  orderdate <- d$OrderDate
+  reqdate <- d$X1st.Date
+  cmtdate <- d$CmtDate1st
+  ymddate <- d$YMD
+  
+  #
+  # timediff
+  #
+  timeDiff <- ymddate - orderdate  
+  
+  #
+  # cmtDiff
+  #
+  if (!is.na(cmtdate)){
+    cmtDiff <- cmtdate - orderdate 
+  }else if(!is.na(reqdate)){
+    cmtDiff <- reqdate - orderdate  
   }else{
-    if (!is.na(d$CmtDate1st) & !is.na(d$YMD)){
-      timediff <- strptime(d$CmtDate1st, "%Y-%m-%d") - strptime(d$YMD, "%Y-%m-%d") 
-    }else if(is.na(d$CmtDate1st) & !is.na(d$YMD)){
-      if (!is.na(d$X1st.Date)){
-        timediff <- strptime(d$X1st.Date, "%Y-%m-%d") - strptime(d$YMD, "%Y-%m-%d") 
-      }else{
-        timediff <- NA
-      }
-    }else{
-      timediff <- NA
-    }
+    cmtDiff <- NA
   }
   
-  return(timediff)
-}) # Response variable
-t5 <- proc.time()
-LeadTime <- sapply(1:nrow(dataUse), function(i){
-  d <- dataUse[i, ]
-  #strptime(d$CmtDate1st, "%Y-%m-%d") - strptime(d$OrderDate, "%Y-%m-%d")
-  if (!is.na(d$CmtDate1st) & !is.na(d$OrderDate)){
-    lt <- d$CmtDate1st - d$OrderDate  
-  }else if(is.na(d$CmtDate1st) & !is.na(d$X1st.Date) & !is.na(d$OrderDate)){
-    lt <- d$X1st.Date - d$OrderDate  
+  #
+  # reqDiff
+  #
+  if (!is.na(reqdate)){
+    reqDiff <- reqdate - orderdate 
   }else{
-    lt <- NA
+    reqDiff <- NA
   }
-  return(lt)
+  
+  return(c(timeDiff, cmtDiff, reqDiff))
 })
-t6 <- proc.time()
+TimeDiff <- timeCompute[1, ] 
+CmtDiff <- timeCompute[2, ] 
+ReqDiff <- timeCompute[3, ] 
+t5 <- proc.time()
 
 dataCleaning <- cbind(dataUse, "ModePayment" = ModePayment, "NewSector" = NewSector, 
-                      "OrderSeason" = OrderSeason, "LeadTime" = LeadTime, "Delay" = Delay)
+                      "OrderSeason" = OrderSeason, 
+                      "TimeDiff" = TimeDiff, "CmtDiff" = CmtDiff, "ReqDiff" = ReqDiff)
 
-head(dataCleaning)
-table(dataCleaning$PG)
-##
-#dataForUse <- dataCleaning[, c("Cust", "RBU", "Region", "PG", "PD", "Sales.id", "Qty", "US.Amt", "NewSector", "Delay")]
-dataForUse <- dataCleaning[, c("Region", "PG", "Qty", "US.Amt", "ModePayment", "NewSector", "OrderSeason", "LeadTime", "Delay", 
+dataForUse <- dataCleaning[, c("Region", "PG", "Qty", "US.Amt", "ModePayment", "NewSector", "OrderSeason", "TimeDiff", "CmtDiff", "ReqDiff", 
                                "OrderDate", "X1st.Date", "CmtDate1st", "YMD")]
 dataForUse$Qty <- as.numeric(dataForUse$Qty)
 dataForUse$US.Amt <- as.numeric(dataForUse$US.Amt)
 dataForUse$ModePayment <- as.factor(dataForUse$ModePayment)
 dataForUse$NewSector <- as.factor(dataForUse$NewSector)
 dataForUse$OrderSeason <- as.factor(dataForUse$OrderSeason)
-dataForUse$LeadTime <- as.numeric(dataForUse$LeadTime)
-dataForUse$Delay <- as.factor(dataForUse$Delay)
-dataForUse <- dataForUse[-which(is.na(dataForUse), arr.ind = T)[, 1], ]
+dataForUse$TimeDiff <- as.numeric(dataForUse$TimeDiff)
+dataForUse$CmtDiff <- as.numeric(dataForUse$CmtDiff)
+dataForUse$ReqDiff <- as.numeric(dataForUse$ReqDiff)
+#####
+#dataForUse <- dataForUse[-which(is.na(dataForUse), arr.ind = T)[, 1], ]
+dataForUse <- dataForUse[-which(is.na(dataForUse[, 1:10]), arr.ind = T)[, 1], ] # remove the row which CmtDiff or ReqDiff is na.
 if (length(which(as.numeric(dataForUse$US.Amt) < 0)) > 0) dataForUse <- dataForUse[-which(as.numeric(dataForUse$US.Amt) < 0), ]
 if (length(which(as.numeric(dataForUse$Qty) < 0)) > 0) dataForUse <- dataForUse[-which(as.numeric(dataForUse$Qty) < 0), ]
+
+
+save.image("C:/Users/David79.Tseng/Dropbox/David79.Tseng/git-respository/orderAnalysis/dataForUse_2010.RData")
+
+
+###
+### Initial data analysis
+###
+
+## <<Transformation>>
+## TimeDiff: log
+## US.Amt: log
+## 
 str(dataForUse)
+hist(dataForUse$Qty)
 
-####
-table(dataForUse[which(dataForUse$Delay == 1), "Region"])
-dataForUse[which(dataForUse$PG == "Industrial Automation"), "US.Amt"]
-dataForUse[which(dataForUse$PG == "Industrial Automation" & dataForUse$Delay == 1), "US.Amt"]
-sum(dataForUse[which(dataForUse$Sales.id %in% c('41310014', '11120303', '41160011')), "Delay"])
-sum(dataForUse[which(dataForUse$PG %in% c("Industrial Automation", "Intelligent System", "Embcore", "PAPS")), "Delay"])
+plot(dataForUse$TimeDiff ~ dataForUse$Region)
+plot(dataForUse$TimeDiff ~ dataForUse$PG)
+plot(dataForUse$TimeDiff ~ dataForUse$Qty)
+plot(dataForUse$TimeDiff ~ dataForUse$US.Amt)
+plot(dataForUse$TimeDiff ~ dataForUse$ModePayment)
+plot(dataForUse$TimeDiff ~ dataForUse$NewSector)
+plot(dataForUse$TimeDiff ~ dataForUse$OrdeSeason)
+plot(dataForUse$TimeDiff ~ dataForUse$CmtDiff)
+plot(dataForUse$TimeDiff ~ dataForUse$ReqDiff)
 
-tabOrd <- table(dataForUse[which(dataForUse$Delay == 1), "OrderDate"])
+
+x <- dataForUse$TimeDiff
+x <- dataForUse$CmtDiff
+x <- dataForUse$ReqDiff
+num <- ceiling(0.0005*length(x))
+y <- sort(x)
+summary(x)
+summary(y[c(-c(1:num), -(length(x):(length(x) - num)))])
+hist(y[c(-c(1:num), -(length(x):(length(x) - num)))])
+hist(log(y[c(-c(1:num), -(length(x):(length(x) - num)))]))
+hist(log(x))
+
+d <- dataForUse$TimeDiff - dataForUse$CmtDiff
+summary(d)
+length(which(d > 4000))
+
+sum(dataForUse[(which(dataForUse$CmtDate1st >= strptime("2015-08-01", "%Y-%m-%d") & 
+               dataForUse$CmtDate1st <= strptime("2015-08-31", "%Y-%m-%d"))), "US.Amt"])
 ####
 #### linear regression
 ####
+mod1 <- lm(TimeDiff ~ Region + PG + Qty + US.Amt + ModePayment + NewSector + OrderSeason, data = dataForUse)
+mod2 <- lm(TimeDiff ~ Region + PG + Qty + US.Amt + ModePayment, data = dataForUse)
+mod3 <- lm(TimeDiff ~ (Region + PG + Qty + US.Amt + ModePayment)^2, data = dataForUse)
+summary(mod3)
+
+
+
+
+
+
 
 
